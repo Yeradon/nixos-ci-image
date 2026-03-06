@@ -88,14 +88,14 @@
               # Symlink standard C/C++ libraries to standard paths for GHA binaries
               # (Node.js strips LD_LIBRARY_PATH in some contexts)
               mkdir -p lib64
-              ln -s ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 lib64/libstdc++.so.6
-              ln -s ${pkgs.stdenv.cc.cc.lib}/lib/libgcc_s.so.1 lib64/libgcc_s.so.1
-              ln -s ${pkgs.zlib}/lib/libz.so.1 lib64/libz.so.1
+              ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 lib64/libstdc++.so.6
+              ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libgcc_s.so.1 lib64/libgcc_s.so.1
+              ln -sf ${pkgs.zlib}/lib/libz.so.1 lib64/libz.so.1
               
               mkdir -p usr/lib64
-              ln -s ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 usr/lib64/libstdc++.so.6
-              ln -s ${pkgs.stdenv.cc.cc.lib}/lib/libgcc_s.so.1 usr/lib64/libgcc_s.so.1
-              ln -s ${pkgs.zlib}/lib/libz.so.1 usr/lib64/libz.so.1
+              ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 usr/lib64/libstdc++.so.6
+              ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libgcc_s.so.1 usr/lib64/libgcc_s.so.1
+              ln -sf ${pkgs.zlib}/lib/libz.so.1 usr/lib64/libz.so.1
 
               # Create dummy os-release for GitHub Actions compatibility
               cat > etc/os-release <<EOF
