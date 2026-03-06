@@ -46,10 +46,21 @@
 
             # Compression (zstd required by actions/cache)
             zstd
+
+            # glibc and stdc++ for dynamically linked binaries (like GHA's node)
+            glibc
+            stdenv.cc.cc.lib
           ];
 
           # Build a proper PATH from all included packages
           pathString = pkgs.lib.makeBinPath imagePackages;
+          
+          # Library path for nix-ld
+          ldLibraryPath = pkgs.lib.makeLibraryPath [
+            pkgs.glibc
+            pkgs.stdenv.cc.cc.lib
+            pkgs.zlib
+          ];
         in
         {
           default = pkgs.dockerTools.buildLayeredImage {
@@ -61,6 +72,7 @@
               pkgs.dockerTools.usrBinEnv
               pkgs.dockerTools.caCertificates
               pkgs.dockerTools.fakeNss
+              pkgs.nix-ld
             ];
 
             # Set up directories and config files in the final layer
@@ -72,6 +84,17 @@
               mkdir -p etc/nix
               mkdir -p nix/var/nix/profiles/per-user/runner
               mkdir -p nix/var/nix/gcroots/per-user/runner
+
+              # Create dummy os-release for GitHub Actions compatibility
+              cat > etc/os-release <<EOF
+              NAME=NixOS
+              ID=nixos
+              VERSION="25.11"
+              VERSION_CODENAME=nixos
+              PRETTY_NAME="NixOS 25.11 (CI Runner)"
+              EOF
+              # Remove leading whitespace
+              sed -i 's/^[[:space:]]*//' etc/os-release
 
               # Nix configuration: enable flakes and nix-command
               cat > etc/nix/nix.conf <<'EOF'
@@ -98,6 +121,8 @@
                 "NIX_PATH=nixpkgs=${nixpkgs}"
                 "HOME=/home/runner"
                 "USER=runner"
+                "NIX_LD=${pkgs.nix-ld}/libexec/nix-ld"
+                "NIX_LD_LIBRARY_PATH=${ldLibraryPath}"
               ];
               WorkingDir = "/home/runner/_work";
               User = "1000:1000";
