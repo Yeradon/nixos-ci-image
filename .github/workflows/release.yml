@@ -1,0 +1,65 @@
+name: Release CI Image
+
+on:
+  workflow_run:
+    workflows: ["Build & Push CI Image"]
+    types: [completed]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'v')
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Extract version from tag
+        id: tag
+        run: echo "version=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+
+      - name: Install skopeo
+        run: sudo apt-get update && sudo apt-get install -y skopeo
+
+      - name: Log in to Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            skopeo login \
+              --username "${{ github.actor }}" \
+              --password-stdin \
+              ${{ env.REGISTRY }}
+
+      - name: Tag image with release version
+        run: |
+          DEST="${{ env.REGISTRY }}/${IMAGE_NAME}"
+          # Re-tag the latest image with the version tag (registry-to-registry, no download)
+          skopeo copy \
+            --all \
+            "docker://${DEST}:latest" \
+            "docker://${DEST}:${{ steps.tag.outputs.version }}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Extract nixpkgs version
+        id: nixpkgs
+        run: |
+          NIXPKGS_REF=$(jq -r '.nodes.nixpkgs.original.ref // empty' flake.lock)
+          echo "ref=${NIXPKGS_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.version }}
+          name: "${{ steps.tag.outputs.version }} (${{ steps.nixpkgs.outputs.ref }})"
+          generate_release_notes: true

@@ -1,0 +1,75 @@
+name: Build & Push CI Image
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract nixpkgs version tag
+        id: nixpkgs
+        run: |
+          NIXPKGS_REF=$(jq -r '.nodes.nixpkgs.original.ref // empty' flake.lock)
+          NIXPKGS_REV=$(jq -r '.nodes.nixpkgs.locked.rev // empty' flake.lock | head -c 8)
+          echo "ref=${NIXPKGS_REF}" >> "$GITHUB_OUTPUT"
+          echo "rev=${NIXPKGS_REV}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-25.11
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build container image
+        run: nix build .#default
+
+      - name: Log in to Container Registry
+        if: github.event_name == 'push'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            nix shell nixpkgs#skopeo -c skopeo login \
+              --username "${{ github.actor }}" \
+              --password-stdin \
+              ${{ env.REGISTRY }}
+
+      - name: Push image tags
+        if: github.event_name == 'push'
+        run: |
+          DEST="${{ env.REGISTRY }}/${IMAGE_NAME}"
+
+          # Push as nixpkgs release tag (e.g. nixos-25.11)
+          nix shell nixpkgs#skopeo -c skopeo copy \
+            --insecure-policy \
+            docker-archive:./result \
+            "docker://${DEST}:${{ steps.nixpkgs.outputs.ref }}"
+
+          # Push as nixpkgs pinned rev (e.g. nixos-25.11-fabb8c9d)
+          nix shell nixpkgs#skopeo -c skopeo copy \
+            --insecure-policy \
+            docker-archive:./result \
+            "docker://${DEST}:${{ steps.nixpkgs.outputs.ref }}-${{ steps.nixpkgs.outputs.rev }}"
+
+          # Push as latest
+          nix shell nixpkgs#skopeo -c skopeo copy \
+            --insecure-policy \
+            docker-archive:./result \
+            "docker://${DEST}:latest"
