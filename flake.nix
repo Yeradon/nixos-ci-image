@@ -1,0 +1,113 @@
+{
+  description = "Minimal NixOS-based OCI image for GitHub Actions self-hosted runners (Kubernetes mode)";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+  };
+
+  outputs = { self, nixpkgs }:
+    let
+      supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
+      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+    in
+    {
+      packages = forAllSystems (system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+
+          # Packages included in the image
+          imagePackages = with pkgs; [
+            # Shell essentials
+            bashInteractive
+            coreutils
+            gnugrep
+            gnused
+            gawk
+            findutils
+            gnutar
+            gzip
+            xz
+            which
+
+            # Networking & TLS
+            curl
+            cacert
+            openssh
+
+            # Git (required by actions/checkout)
+            git
+            git-lfs
+
+            # Nix itself
+            nix
+
+            # Node.js (required by JavaScript-based GitHub Actions)
+            nodejs
+
+            # Compression (zstd required by actions/cache)
+            zstd
+          ];
+
+          # Build a proper PATH from all included packages
+          pathString = pkgs.lib.makeBinPath imagePackages;
+        in
+        {
+          default = pkgs.dockerTools.buildLayeredImage {
+            name = "nixos-ci-image";
+            tag = "latest";
+
+            contents = imagePackages ++ [
+              pkgs.dockerTools.binSh
+              pkgs.dockerTools.usrBinEnv
+              pkgs.dockerTools.caCertificates
+              pkgs.dockerTools.fakeNss
+            ];
+
+            # Set up directories and config files in the final layer
+            extraCommands = ''
+              # Create required directories
+              mkdir -p tmp
+              chmod 1777 tmp
+              mkdir -p home/runner/_work
+              mkdir -p etc/nix
+              mkdir -p nix/var/nix/profiles/per-user/runner
+              mkdir -p nix/var/nix/gcroots/per-user/runner
+
+              # Nix configuration: enable flakes and nix-command
+              cat > etc/nix/nix.conf <<'EOF'
+              experimental-features = nix-command flakes
+              sandbox = false
+              filter-syscalls = false
+              EOF
+              # Remove leading whitespace from heredoc
+              sed -i 's/^[[:space:]]*//' etc/nix/nix.conf
+            '';
+
+            fakeRootCommands = ''
+              # Set ownership for runner home directory
+              chown -R 1000:1000 home/runner
+              chown -R 1000:1000 nix/var/nix/profiles/per-user/runner
+              chown -R 1000:1000 nix/var/nix/gcroots/per-user/runner
+            '';
+
+            config = {
+              Env = [
+                "PATH=${pathString}:/usr/bin:/bin"
+                "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+                "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+                "NIX_PATH=nixpkgs=${nixpkgs}"
+                "HOME=/home/runner"
+                "USER=runner"
+              ];
+              WorkingDir = "/home/runner/_work";
+              User = "1000:1000";
+              Volumes = {
+                "/home/runner/_work" = { };
+                "/tmp" = { };
+              };
+            };
+          };
+        }
+      );
+    };
+}
