@@ -13,7 +13,7 @@ env:
 
 jobs:
   build:
-    name: Build ${{ matrix.target }} (${{ matrix.channel }})
+    name: Build ${{ matrix.version }} (${{ matrix.channel }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,15 +22,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: "26.05"
+          - target: "stable"
+            version: "26.05"
             channel: "nixos-26.05"
             input: "nixpkgs-stable"
             tags: "26.05 stable latest nixos-26.05"
-          - target: "25.11"
+          - target: "old-stable"
+            version: "25.11"
             channel: "nixos-25.11"
             input: "nixpkgs-old"
             tags: "25.11 old-stable nixos-25.11"
           - target: "unstable"
+            version: "unstable"
             channel: "nixos-unstable"
             input: "nixpkgs-unstable"
             tags: "unstable nixos-unstable"
@@ -84,5 +87,5 @@ jobs:
             nix shell nixpkgs#skopeo -c skopeo copy \
               --insecure-policy \
               docker-archive:./result \
-              "docker://${DEST}:${{ matrix.target }}-${{ steps.nixpkgs.outputs.rev }}"
+              "docker://${DEST}:${{ matrix.version }}-${{ steps.nixpkgs.outputs.rev }}"
           fi

@@ -39,13 +39,15 @@ if [ "${LATEST_STABLE}" != "${CURRENT_STABLE}" ]; then
   sed -i "s|default = self.packages.\${system}.\"${CURRENT_STABLE}\"|default = self.packages.\${system}.\"${LATEST_STABLE}\"|g" flake.nix
 
   # 2. Update .github/workflows/build.yml matrix
-  sed -i "s|target: \"${CURRENT_STABLE}\"|target: \"${LATEST_STABLE}\"|g" .github/workflows/build.yml
-  sed -i "s|channel: \"nixos-${CURRENT_STABLE}\"|channel: \"nixos-${LATEST_STABLE}\"|g" .github/workflows/build.yml
-  sed -i "s|tags: \"${CURRENT_STABLE} stable latest nixos-${CURRENT_STABLE}\"|tags: \"${LATEST_STABLE} stable latest nixos-${LATEST_STABLE}\"|g" .github/workflows/build.yml
-
-  sed -i "s|target: \"${CURRENT_OLD}\"|target: \"${CURRENT_STABLE}\"|g" .github/workflows/build.yml
+  # Shift old-stable to previous stable
+  sed -i "s|version: \"${CURRENT_OLD}\"|version: \"${CURRENT_STABLE}\"|g" .github/workflows/build.yml
   sed -i "s|channel: \"nixos-${CURRENT_OLD}\"|channel: \"nixos-${CURRENT_STABLE}\"|g" .github/workflows/build.yml
   sed -i "s|tags: \"${CURRENT_OLD} old-stable nixos-${CURRENT_OLD}\"|tags: \"${CURRENT_STABLE} old-stable nixos-${CURRENT_STABLE}\"|g" .github/workflows/build.yml
+
+  # Set stable to new latest stable
+  sed -i "s|version: \"${CURRENT_STABLE}\"|version: \"${LATEST_STABLE}\"|g" .github/workflows/build.yml
+  sed -i "s|channel: \"nixos-${CURRENT_STABLE}\"|channel: \"nixos-${LATEST_STABLE}\"|g" .github/workflows/build.yml
+  sed -i "s|tags: \"${CURRENT_STABLE} stable latest nixos-${CURRENT_STABLE}\"|tags: \"${LATEST_STABLE} stable latest nixos-${LATEST_STABLE}\"|g" .github/workflows/build.yml
 
   # 3. Update README.md
   sed -i "s|${CURRENT_STABLE}|${LATEST_STABLE}|g" README.md
