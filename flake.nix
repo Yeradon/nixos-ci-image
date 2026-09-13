@@ -2,7 +2,7 @@
   description = "Minimal NixOS-based OCI image for GitHub Actions self-hosted runners (Kubernetes mode)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   };
 
   outputs = { self, nixpkgs }:
@@ -101,9 +101,9 @@
               cat > etc/os-release <<EOF
               NAME=NixOS
               ID=nixos
-              VERSION="25.11"
+              VERSION="26.05"
               VERSION_CODENAME=nixos
-              PRETTY_NAME="NixOS 25.11 (CI Runner)"
+              PRETTY_NAME="NixOS 26.05 (CI Runner)"
               EOF
               # Remove leading whitespace
               sed -i 's/^[[:space:]]*//' etc/os-release

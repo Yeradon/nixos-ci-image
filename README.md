@@ -50,7 +50,7 @@ skopeo copy docker-archive:./result docker://ghcr.io/yeradon/nixos-ci-image:dev
 
 ### Build (`build.yml`)
 - **Trigger**: Push to `main`, `v*` tags, PRs against `main`
-- **On push**: Builds + pushes to `ghcr.io` with nixpkgs-based tags (e.g. `nixos-25.11`) and `latest`
+- **On push**: Builds + pushes to `ghcr.io` with nixpkgs-based tags (e.g. `nixos-26.05`) and `latest`
 - **On PRs**: Build-only (smoke test)
 
 ### Release (`release.yml`)
