@@ -1,0 +1,72 @@
+name: Auto-update NixOS Channels & Flake Lock
+
+on:
+  schedule:
+    # Run every Monday at 04:00 UTC
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-channels:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Run channel update & release check script
+        id: update
+        run: |
+          ./.github/scripts/update-channels.sh
+
+      - name: Create Pull Request for new NixOS stable release
+        if: steps.update.outputs.has_changes == 'true' && steps.update.outputs.new_release == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "feat(deps): upgrade to NixOS ${{ steps.update.outputs.latest_stable }}"
+          branch: "update/nixos-${{ steps.update.outputs.latest_stable }}"
+          title: "feat(deps): upgrade to NixOS ${{ steps.update.outputs.latest_stable }}"
+          body: |
+            ### Automated NixOS Stable Upgrade
+
+            A new NixOS stable release has been detected: **`${{ steps.update.outputs.latest_stable }}`**.
+
+            #### Channel Updates
+            - **Current Stable:** `nixos-${{ steps.update.outputs.latest_stable }}` (new `:latest` / `:stable`)
+            - **Old Stable:** `nixos-${{ steps.update.outputs.old_stable }}`
+            - **Unstable:** `nixos-unstable`
+
+            This PR was automatically created by `.github/workflows/update-flake.yml`.
+          labels: |
+            dependencies
+            automated-pr
+
+      - name: Create Pull Request for weekly flake update
+        if: steps.update.outputs.has_changes == 'true' && steps.update.outputs.new_release == 'false'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(deps): weekly update of nixpkgs channels"
+          branch: "update/weekly-flake-lock"
+          title: "chore(deps): weekly update of nixpkgs channels"
+          body: |
+            ### Automated Weekly Flake Lock Update
+
+            Bumps inputs in `flake.lock` to the latest upstream commits for:
+            - `nixpkgs-old`
+            - `nixpkgs-stable`
+            - `nixpkgs-unstable`
+
+            This PR was automatically created by `.github/workflows/update-flake.yml`.
+          labels: |
+            dependencies
+            automated-pr
