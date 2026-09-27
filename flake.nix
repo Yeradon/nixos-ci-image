@@ -78,22 +78,31 @@
             # Create required directories
             mkdir -p tmp
             chmod 1777 tmp
+            mkdir -p root
             mkdir -p home/runner/_work
             mkdir -p etc/nix
+            mkdir -p nix/var/nix/profiles/per-user/root
+            mkdir -p nix/var/nix/gcroots/per-user/root
             mkdir -p nix/var/nix/profiles/per-user/runner
             mkdir -p nix/var/nix/gcroots/per-user/runner
 
             # Symlink standard C/C++ libraries to standard paths for GHA binaries
             # (Node.js strips LD_LIBRARY_PATH in some contexts)
-            mkdir -p lib64
-            ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 lib64/libstdc++.so.6
-            ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libgcc_s.so.1 lib64/libgcc_s.so.1
-            ln -sf ${pkgs.zlib}/lib/libz.so.1 lib64/libz.so.1
+            mkdir -p lib lib64 usr/lib usr/lib64
+            for dir in lib lib64 usr/lib usr/lib64; do
+              ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 "$dir/libstdc++.so.6"
+              ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libgcc_s.so.1 "$dir/libgcc_s.so.1"
+              ln -sf ${pkgs.zlib}/lib/libz.so.1 "$dir/libz.so.1"
+              ln -sf ${pkgs.glibc}/lib/libc.so.6 "$dir/libc.so.6"
+              ln -sf ${pkgs.glibc}/lib/libm.so.6 "$dir/libm.so.6"
+              ln -sf ${pkgs.glibc}/lib/libdl.so.2 "$dir/libdl.so.2"
+              ln -sf ${pkgs.glibc}/lib/libpthread.so.0 "$dir/libpthread.so.0" 2>/dev/null || true
+            done
 
-            mkdir -p usr/lib64
-            ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 usr/lib64/libstdc++.so.6
-            ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libgcc_s.so.1 usr/lib64/libgcc_s.so.1
-            ln -sf ${pkgs.zlib}/lib/libz.so.1 usr/lib64/libz.so.1
+            # Wire dynamic linker to nix-ld so foreign binaries (like GHA runner's Node)
+            # find their libraries via NIX_LD_LIBRARY_PATH
+            ln -sf ${pkgs.nix-ld}/libexec/nix-ld lib64/ld-linux-x86-64.so.2
+            ln -sf ${pkgs.nix-ld}/libexec/nix-ld lib/ld-linux-x86-64.so.2
 
             # Create dummy os-release for GitHub Actions compatibility
             cat > etc/os-release <<EOF
@@ -111,17 +120,13 @@
             experimental-features = nix-command flakes
             sandbox = false
             filter-syscalls = false
+            build-users-group =
             EOF
             # Remove leading whitespace from heredoc
             sed -i 's/^[[:space:]]*//' etc/nix/nix.conf
           '';
 
-          fakeRootCommands = ''
-            # Set ownership for runner home directory
-            chown -R 1000:1000 home/runner
-            chown -R 1000:1000 nix/var/nix/profiles/per-user/runner
-            chown -R 1000:1000 nix/var/nix/gcroots/per-user/runner
-          '';
+          fakeRootCommands = '''';
 
           config = {
             Env = [
@@ -129,13 +134,12 @@
               "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
               "NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
               "NIX_PATH=nixpkgs=${pkgs.path}"
-              "HOME=/home/runner"
-              "USER=runner"
-              "NIX_LD=${pkgs.nix-ld}/libexec/nix-ld"
+              "HOME=/root"
+              "USER=root"
+              "NIX_LD=${pkgs.glibc}/lib/ld-linux-x86-64.so.2"
               "NIX_LD_LIBRARY_PATH=${ldLibraryPath}"
             ];
             WorkingDir = "/home/runner/_work";
-            User = "1000:1000";
             Volumes = {
               "/home/runner/_work" = { };
               "/tmp" = { };
